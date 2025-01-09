@@ -23,20 +23,43 @@ class OHLCV(CustomBaseModel):
 
     @classmethod
     def from_response(cls, response: dict[str, Any]) -> Self:
-        if "xhms" in response:
+        if "stck_cntg_hour" in response:  # 국내주식 1분봉 데이터
+            date = datetime.strptime(response["stck_bsop_date"] + response["stck_cntg_hour"], "%Y%m%d%H%M%S")
+            open=response["stck_oprc"]
+            high=response["stck_hgpr"]
+            low=response["stck_lwpr"]
+            close = response["stck_prpr"]
+            volume = response["cntg_vol"]
+
+        elif "stck_bsop_date" in response:  # 국내주식 일/주/월/년 데이터
+            date = datetime.strptime(response["stck_bsop_date"], "%Y%m%d")
+            open=response["stck_oprc"]
+            high=response["stck_hgpr"]
+            low=response["stck_lwpr"]
+            close=response["stck_clpr"]
+            volume=response["acml_vol"]
+            
+        elif "xhms" in response:  # 해외주식 분봉 데이터
             date = datetime.strptime(response["xymd"] + response["xhms"], "%Y%m%d%H%M%S")
-            volume = response["evol"]
+            open=response["open"]
+            high=response["high"]
+            low=response["low"]
             close = response["last"]
-        else:
+            volume = response["evol"]
+
+        else:  # 해외주식 일/주/월 데이터
             date = datetime.strptime(response["xymd"], "%Y%m%d")
-            volume = response["tvol"]
+            open=response["open"]
+            high=response["high"]
+            low=response["low"]
             close = response["clos"]
+            volume = response["tvol"]
 
         return cls(
             date=date,
-            open=response["open"],
-            high=response["high"],
-            low=response["low"],
+            open=open,
+            high=high,
+            low=low,
             close=close,
             volume=volume,
         )

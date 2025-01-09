@@ -148,8 +148,28 @@ class KisClientV2:
             list[dict]: 주식 기간별 시세
         """
         if self.nation == "KR":
-            # TODO: 국내주식 시세 조회
-            return []
+            if period in ["d", "w", "M", "Y"]:
+                histories = self.client.domestic_stock.quote.get_stock_price_history(
+                    symbol=symbol,
+                    start_date=start_date,
+                    end_date=end_date,
+                    period=period,
+                    is_adjust=is_adjust,
+                    desc=desc, 
+                    limit=limit,
+                )
+                result = [OHLCV.from_response(history) for history in histories]
+            elif period == "1m":
+                histories = self.client.domestic_stock.quote.get_stock_price_history_by_minute(
+                    symbol=symbol,
+                    time=start_date,
+                    limit=limit,
+                    desc=desc,
+                )
+                result = [OHLCV.from_response(history) for history in histories]
+            else:
+                # TODO : 1분봉 외의 조회는 KIS 미지원, 계산 로직 구현 요
+                raise NotImplementedError("1분봉을 제외한 분봉, 시간봉 조회는 아직 구현되지 않았습니다.")
 
         self.load_market_data()
         if symbol not in self._market:

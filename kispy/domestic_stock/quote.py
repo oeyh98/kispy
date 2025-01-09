@@ -34,17 +34,19 @@ class QuoteAPI(BaseAPI):
 
     def get_stock_price_history(
         self,
-        stock_code: str,
-        start_date: str,
+        symbol: str,
+        start_date: str | None = None,
         end_date: str | None = None,
         period: str = "D",
         is_adjust: bool = True,
+        limit: int | None = None,
+        desc: bool = False,
     ) -> list[dict]:
         """
-        국내주식기간별시세(일/주/월/년) API입니다.
+        국내주식기간별시세(일/주/월/년)[v1_국내주식-016]
 
         Args:
-            stock_code (str): 종목코드
+            symbol (str): 종목코드
             start_date (str): 조회시작일자 ("YYYY-MM-DD" 형식)
             end_date (str | None): 조회종료일자 ("YYYY-MM-DD" 형식), 기본값은 오늘
             period (str): 조회기간, 기본값은 "D" (일) (옵션: "D" (일), "W" (주), "M" (월), "Y" (년))
@@ -53,23 +55,33 @@ class QuoteAPI(BaseAPI):
         Returns:
             list[dict]: 주식 기간별 시세 (시간 역순 정렬)
         """
-        parsed_start_date = self._parse_date(start_date)
+        period_list = ["d", "w", "M", "Y"]
+        if period not in period_list:
+            raise ValueError(f"Invalid period: {period}")
+
+        path = "uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+        url = f"{self._url}/{path}"
+
+        headers = self._auth.get_header()
+        headers["tr_id"] = "FHKST03010100"
+
         parsed_end_date = min(
             self._parse_date(end_date or datetime.now().strftime("%Y-%m-%d")),
             datetime.now(),
         )
+        parsed_start_date = self._parse_date(start_date) if start_date else parsed_end_date - timedelta(days=99)
 
         result = []
         cur_end_date = parsed_end_date
         while cur_end_date >= parsed_start_date:
             cur_start_date = min(cur_end_date - timedelta(days=99), parsed_start_date)
             resp = self._request(
-                "GET",
-                f"{self._url}/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice",
-                headers={**self._auth.get_header(), "tr_id": "FHKST03010100"},
+                method="GET",
+                url=url,
+                headers=headers,
                 params={
                     "FID_COND_MRKT_DIV_CODE": "J",
-                    "FID_INPUT_ISCD": stock_code,
+                    "FID_INPUT_ISCD": symbol,
                     "FID_INPUT_DATE_1": cur_start_date.strftime("%Y%m%d"),
                     "FID_INPUT_DATE_2": cur_end_date.strftime("%Y%m%d"),
                     "FID_PERIOD_DIV_CODE": period,
@@ -87,6 +99,13 @@ class QuoteAPI(BaseAPI):
             result.extend(items)
             cur_end_date = datetime.strptime(items[-1]["stck_bsop_date"], "%Y%m%d") - timedelta(days=1)
 
+            if limit and len(result) >= limit:
+                result = result[:limit]
+                break
+
+        if not desc:
+            result.reverse()
+
         return result
     
     def get_stock_price_history_by_minute(
@@ -100,7 +119,7 @@ class QuoteAPI(BaseAPI):
         당일 분봉 데이터만 제공됩니다. (전일자 분봉 미제공)
 
         Args:
-            symbol (str): 종목코드
+            stock_code (str): 종목코드
             time (str | None): 조회 시작시간 (HHMMSS 형식, 예: "123000"은 12시 30분부터 조회) None인 경우 현재시각부터 조회
             limit (int): 조회 건수, 기본값 30건
             desc (bool): 시간 역순 정렬 여부, 기본값은 False (False: 과거순 정렬, True: 최신순 정렬)

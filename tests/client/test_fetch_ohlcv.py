@@ -15,7 +15,7 @@ from kispy.constants import Period
         # ("M", 12),  # 월은 API 미지원
     ],
 )
-def test_fetch_ohlcv_various_daily_period(
+def test_fetch_ohlcv_us_various_daily_period(
     auth: KisAuth,
     period: Period,
     expected_length: int,
@@ -39,7 +39,7 @@ def test_fetch_ohlcv_various_daily_period(
         ("4h", 2),
     ],
 )
-def test_fetch_ohlcv_various_minute_period(
+def test_fetch_ohlcv_us_various_minute_period(
     auth: KisAuth,
     period: Period,
     expected_length: int,
@@ -58,7 +58,60 @@ def test_fetch_ohlcv_various_minute_period(
     assert len(resp) == expected_length
 
 
-def test_fetch_ohlcv_by_minute_with_limit(auth: KisAuth):
+def test_fetch_ohlcv_us_by_minute_with_limit(auth: KisAuth):
     client = KisClientV2(auth, "US")
     resp = client.fetch_ohlcv("AAPL", None, None, "1m", limit=240)
     assert len(resp) == 240
+
+
+@pytest.mark.parametrize(
+    "period, expected_length",
+    [
+        ("d", 250),  # 약 1년치 거래일
+        ("w", 52),   # 약 1년치 주봉
+        ("M", 12),   # 약 1년치 월봉
+    ],
+)
+def test_fetch_ohlcv_kr_various_daily_period(
+    auth: KisAuth,
+    period: Period,
+    expected_length: int,
+):
+    client = KisClientV2(auth, "KR")
+    resp = client.fetch_ohlcv("005930", "2023-01-01", "2024-01-01", period)
+    assert len(resp) == expected_length
+
+
+@pytest.mark.parametrize(
+    "limit, expected_length",
+    [
+        (100, 100),
+        (200, 200),
+        (300, 300),
+    ],
+)
+def test_fetch_ohlcv_kr_by_minute(
+    auth: KisAuth,
+    limit: int,
+    expected_length: int,
+):
+    client = KisClientV2(auth, "KR")
+    # 삼성전자 1분봉 데이터 조회
+    resp = client.fetch_ohlcv("005930", None, None, "1m", limit=limit)
+    assert len(resp) == expected_length
+
+
+def test_fetch_ohlcv_kr_by_minute_with_date(auth: KisAuth):
+    client = KisClientV2(auth, "KR")
+    # 주말을 제외한 최근 하루의 분봉 시세 조회
+    yesterday = datetime.now() - timedelta(days=1)
+    while yesterday.weekday() >= 5:  # 주말인 경우 이전 거래일로
+        yesterday -= timedelta(days=1)
+    
+    resp = client.fetch_ohlcv(
+        symbol="005930",
+        start_date=yesterday.strftime("%Y-%m-%d"),
+        period="1m",
+    )
+    # 정규장 기준 1분봉 개수 (9:00 ~ 15:30, 총 390분)
+    assert len(resp) == 390
